@@ -1,0 +1,58 @@
+all:
+  hosts:
+      #Linux Hosts
+      LIN1:
+        ansible_host: 10.22.0.1
+        hostname: "APPLIX-LINUXHOST-001"
+        webcolor: "blue"
+      LIN2:
+        ansible_host: 10.22.0.2
+        hostname: "APPLIX-LINUXHOST-002"
+        webcolor: "green"
+      LIN3:
+        ansible_host: 10.22.0.3
+        hostname: "APPLIX-LINUXHOST-003"
+        webcolor: "yellow"
+      LIN4:
+        ansible_host: 10.22.0.4
+        hostname: "APPLIX-LINUXHOST-004"
+        webcolor: "red"
+      #Windows Hosts
+      WIN:
+        ansible_host: 10.22.0.101
+        hostname: "WIN"
+        RootCAPriv: true
+  children:
+    linux:
+      vars:
+        ansible_user: root
+      children:
+        web:
+          hosts:
+            LIN1:
+            LIN2:
+          vars:
+            webport: "6851"
+        ha:
+          hosts:
+            LIN3:
+            LIN1:
+            LIN4:
+        dns:
+          hosts:
+            LIN3:
+            LIN4:
+            LIN2:
+    windows:
+      vars:
+        ansible_connection: winrm
+        ansible_port: 5985
+        ansible_user: Administrator
+        ansible_password: P@ssw0rd
+      children:
+        dc:
+          hosts:
+            WIN:
+        iis:
+          hosts:
+            WIN:

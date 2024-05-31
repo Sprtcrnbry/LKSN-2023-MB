@@ -1,0 +1,60 @@
+---
+- name: Configure AD DC, DNS Client and IIS Web
+  hosts: windows
+  tasks:
+  
+    #AD DC
+    - name: create new domain in a new forest on target host
+      ansible.windows.win_domain:
+        dns_domain_name: customers.com
+        domain_mode: "WinThreshold"
+        safe_mode_password: P@ssw0rd
+      when: "'dc' in group_names"
+      register: dc
+
+    - name: reboot
+      ansible.windows.win_reboot:
+      when: dc.reboot_required
+
+    - name: exec ps get ad dc
+      ansible.windows.win_shell: Get-ADDomainController
+      register: dc_result
+    
+    - name: display dc_result
+      debug:
+        var: dc_result.stdout_lines
+
+    # DNS client
+    - name: gather dns ip
+      set_fact:
+        dns_server_ip: "{{ groups['dc'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+    - name: add dns on host
+      ansible.windows.win_dns_client:
+        adapter_names: '*'
+        dns_servers: '{{ dns_server_ip }}'
+    
+    - name: cmd ipconfig /all
+      ansible.windows.win_command: ipconfig /all
+      register: ipconfig_output
+
+    - name: verify dns
+      debug:
+        var: ipconfig_output.stdout_lines
+
+    - name: install iis web
+      ansible.windows.win_feature:
+        name: Web-Server
+        include_management_tools: 'true'
+      when: "'iis' in group_names"
+      register: iis_result
+
+    - name: exec ps iis info
+      ansible.windows.win_shell: |
+        Get-WindowsFeature -Name Web-Server
+        Get-WindowsFeature -Name Web-Mgmt-Tools
+      register: iis_result
+    
+    - name: display iis_result
+      debug:
+        var: iis_result.stdout_lines

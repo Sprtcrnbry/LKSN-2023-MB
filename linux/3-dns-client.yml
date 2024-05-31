@@ -1,0 +1,19 @@
+---
+- name: configure dns client
+  hosts: linux:127.0.0.1
+  tasks:
+    - name: clean file /etc/resolv.conf
+      ansible.builtin.shell:
+        echo -n "" > /etc/resolv.conf
+
+    - name: edit file /etc/resolv.conf
+      lineinfile:
+        path: /etc/resolv.conf
+        line: |
+          options rotate
+          options timeout:1
+          domain lksn2023.com
+          search lksn2023.com
+          {% for host in groups['dns'][0:] %}
+          nameserver {{ hostvars[host].ansible_host }}
+          {% endfor %}

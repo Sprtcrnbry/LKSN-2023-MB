@@ -1,0 +1,12 @@
+---
+- name: Windows Change Hostname
+  hosts: windows
+  tasks:
+    - name: change the hostname to ansible variable
+      ansible.windows.win_hostname:
+        name: "{{ hostname }}"
+      notify: "restart windows"
+
+  handlers:
+    - name: restart windows
+      ansible.windows.win_reboot:

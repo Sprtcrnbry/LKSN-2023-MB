@@ -1,0 +1,11 @@
+zone "lksn2023.com" {
+    type master;
+    file "/etc/bind/db.lksn2023.com";
+    allow-transfer { 10.22.0.2; 10.22.0.4; };
+};
+
+zone "0.22.10.in-addr.arpa" {
+    type master;
+    file "/etc/bind/db.10.22.0";
+    allow-transfer { 10.22.0.2; 10.22.0.4; };
+};

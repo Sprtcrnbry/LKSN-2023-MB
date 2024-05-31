@@ -1,0 +1,79 @@
+---
+- name: Configure DNS Server
+  hosts: dns
+  tasks:
+    - name: install bind9
+      apt:
+        name: bind9
+        state: present
+
+    # Forward DNS
+    - name: configure named dns master
+      template:
+        src: 2-named.conf.local.master
+        dest: /etc/bind/2-named.conf.local
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: copy db.local to db.lksn2023.com
+      command:
+        cp /etc/bind/db.local /etc/bind/db.lksn2023.com
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: replace localhost in db.lksn2023.com
+      replace:
+        path: /etc/bind/db.lksn2023.com
+        regexp: 'localhost'
+        replace: 'lksn2023.com'
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: replace 127.0.0.1 in db.lksn2023.com
+      replace:
+        path: /etc/bind/db.lksn2023.com
+        regexp: '127.0.0.1'
+        replace: '{{ ansible_host }}'
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: create a record for <hostname>.lksn2023.com
+      lineinfile:
+        path: /etc/bind/db.lksn2023.com
+        line: |
+          {% for host in groups['linux'] %}
+          {{ host }}    IN      A       {{ hostvars[host].ansible_host }}
+          {% endfor %}
+          intranet IN     A       10.22.0.51
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: configure named dns slave
+      template:
+        src: 2-named.conf.local.slave
+        dest: /etc/bind/2-named.conf.local
+      when: inventory_hostname != groups['dns'][0]
+
+    # Reverse DNS
+    - name: copy db.0 to db.10.22.0
+      command:
+        cp /etc/bind/db.0 /etc/bind/db.10.22.0
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: replace localhost in db.lksn2023.com
+      replace:
+        path: /etc/bind/db.10.22.0
+        regexp: 'localhost'
+        replace: 'lksn2023.com'
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: create ptr record for <hostname>.lksn2023.com
+      lineinfile:
+        path: /etc/bind/db.10.22.0
+        line: |
+          1       IN      PTR     LIN1.lksn2023.com.
+          2       IN      PTR     LIN2.lksn2023.com.
+          3       IN      PTR     LIN3.lksn2023.com.
+          4       IN      PTR     LIN4.lksn2023.com.
+          51      IN      PTR     intranet.lksn2023.com.
+      when: inventory_hostname == groups['dns'][0]
+
+    - name: restart named
+      service:
+        name: named
+        state: restarted

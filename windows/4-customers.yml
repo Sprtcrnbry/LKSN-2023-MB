@@ -1,0 +1,107 @@
+---
+- name: deploy customer web
+  hosts: windows
+  tasks:
+    # read json
+    - name: read json file
+      shell: cat customers.json
+      register: result
+      delegate_to: localhost
+    
+    - name: save the json data to var as fact
+      ansible.builtin.set_fact:
+        jsondata: "{{ result.stdout | from_json }}"
+    
+    - name: debug data
+      debug:
+        var: jsondata
+
+    # create ou
+    - name: create ou
+      community.windows.win_domain_ou:
+        name: "{{ item.name }}"
+        state: present
+      loop: "{{ jsondata }}"
+
+    - name: exec ps list ou
+      ansible.windows.win_shell:
+        Get-ADOrganizationalUnit -Filter * -SearchBase "DC=customers,DC=com"
+      register: ou_output
+    
+    - name: display ou
+      debug:
+        var: ou_output.stdout_lines
+    
+    # create ad users
+    - name: create ad user to ou
+      community.windows.win_domain_user:
+        name: "{{ item.username }}"
+        password: "{{ item.password }}"
+        path: "ou={{ item.name }},DC=customers,DC=com"
+      loop: "{{ jsondata }}"
+
+    - name: exec ps list aduser
+      ansible.windows.win_shell:
+        Get-ADUser -Filter * -SearchBase "DC=customers,DC=com"
+      register: ad_output
+
+    - name: display adusers
+      debug:
+        var: ad_output.stdout_lines
+    
+    # create dns record forward
+    - name: gather iis ip
+      set_fact:
+        iis_server_ip: "{{ groups['iis'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+    - name: display iis_server_ip data
+      debug:
+        var: iis_server_ip
+
+    - name: create db server record
+      community.windows.win_dns_record:
+        name: "{{ item.domain_prefix }}"
+        type: "A"
+        value: "{{ iis_server_ip | random }}"
+        zone: "customers.com"
+      loop: "{{ jsondata }}"
+    
+    - name: exec ps list dns forward zone list
+      ansible.windows.win_shell:
+        Get-DnsServerResourceRecord -ZoneName customers.com
+      register: dns_records_output
+
+    - name: display dns forward zone list
+      debug:
+        var: dns_records_output.stdout_lines
+    
+    # IIS content
+    - name: create folder vhost
+      ansible.windows.win_file:
+        path: "C:\\inetpub\\{{ item.domain_prefix }}"
+        state: directory
+      loop: "{{ jsondata }}"
+    
+    - name: insert path without convert \r\n
+      community.windows.win_lineinfile:
+        path: "C:\\inetpub\\{{ item.domain_prefix }}\\index.html"
+        line: "{{ item.message }}"
+        create: yes
+      loop: "{{ jsondata }}"
+
+    - name: exec ps list vhost dir
+      ansible.windows.win_shell:
+        Get-ChildItem -Path C:\inetpub -Recurse
+      register: dir_output
+    
+    - name: display dir list
+      debug:
+        var: dir_output.stdout_line
+
+    - name: iis site *.customers.com
+      community.windows.win_iis_website:
+        name: "{{ item.domain_prefix }}"
+        state: started
+        hostname: "{{ item.domain_prefix }}.customers.com"
+        physical_path: "C:\\inetpub\\{{item.domain_prefix}}"
+      loop: "{{ jsondata }}"

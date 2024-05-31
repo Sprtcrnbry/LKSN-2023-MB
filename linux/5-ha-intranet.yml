@@ -1,0 +1,43 @@
+---
+- name: Configure High Availability Servers
+  hosts: ha
+  vars:
+    floating_ip: 10.22.0.51
+  tasks:
+    # Keepalived
+    - name: install keepalived
+      apt:
+        name: keepalived
+        state: present
+
+    - name: copy keepalived.conf
+      template:
+        src: 5-keepalived.conf
+        dest: /etc/keepalived/keepalived.conf
+
+    - name: restart keepalived
+      service:
+        name: keepalived
+        state: restarted
+
+    # HAproxy
+    - name: install HAproxy
+      apt:
+        name: haproxy
+        state: present
+    
+    - name: clean file /etc/haproxy/haproxy.cfg
+      shell:
+        echo -n "" > /etc/haproxy/haproxy.cfg
+
+    - name: copy haproxy.cfg
+      lineinfile:
+        path: /etc/haproxy/haproxy.cfg
+        line: "{{ lookup('template','5-haproxy.cfg') }}"
+        insertafter: EOF
+        state: present
+
+    - name: restart HAproxy
+      service:
+        name: haproxy
+        state: restarted

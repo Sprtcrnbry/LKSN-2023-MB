@@ -1,0 +1,23 @@
+---
+- name: create users from csv file
+  hosts: linux
+  tasks:
+    - name: read users data from csv file
+      community.general.read_csv:
+        path: users.csv
+        delimiter: ';'
+      register: users
+      delegate_to: localhost
+    
+    # - name: display users data
+    #   debug:
+    #     msg: "{{ item }}"
+    #   loop: "{{ users.list }}"
+
+    - name: add user from csv file
+      user:
+        name: "{{ item.username }}"
+        home: "{{ item.home }}"
+        password: "{{ item.password | password_hash('sha512') }}"
+        uid: "{{ item.uid }}"
+      loop: "{{ users.list }}"

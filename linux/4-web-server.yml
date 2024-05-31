@@ -1,0 +1,86 @@
+---
+- name: configure web server
+  hosts: web
+  tasks:
+    - name: install web server apache
+      apt:
+        name: apache2
+        state: present
+
+    # LIN*.lksn2023.com
+    - name: copy lin html file with colored text
+      template:
+        src: 4-index.lin.html
+        dest: /var/www/html/index.html
+
+    - name: copy 000-default.conf to lin.lksn2023.com.conf
+      command:
+        cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/lin.lksn2023.com.conf
+
+    - name: replace port in lin.lksn2023.conf to webport
+      replace:
+        path: /etc/apache2/sites-available/lin.lksn2023.com.conf
+        regexp: '80'
+        replace: '{{ webport }}'
+
+    - name: uncomment and replace ServerName in lin.lksn2023.conf
+      replace:
+        path: /etc/apache2/sites-available/lin.lksn2023.com.conf
+        regexp: '#ServerName www.example.com'
+        replace: 'ServerName {{ inventory_hostname }}.lksn2023.com'
+    
+    # intranet.lksn2023.com
+    - name: create intranet.lksn2023.com dir
+      file:
+        path: /var/www/intranet
+        state: directory
+
+    - name: copy intranet html file
+      template:
+        src: 4-index.intranet.html
+        dest: /var/www/intranet/index.html
+
+    - name: copy 000-default.conf to intranet.lksn2023.com.conf
+      command:
+        cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/intranet.lksn2023.com.conf     
+
+
+    - name: clean file /etc/apache2/ports.conf
+      shell:
+        echo -n "" > /etc/apache2/ports.conf
+
+    - name: replace port in intranet.lksn2023.conf to 8081
+      replace:
+        path: /etc/apache2/sites-available/intranet.lksn2023.com.conf
+        regexp: '80'
+        replace: '8081'
+
+    - name: uncomment and replace ServerName in lin.lksn2023.conf
+      replace:
+        path: /etc/apache2/sites-available/intranet.lksn2023.com.conf
+        regexp: '#ServerName www.example.com'
+        replace: 'ServerName intranet.lksn2023.com'
+
+    - name: replace DocumentRoot in intranet.lksn2023.conf
+      replace:
+        path: /etc/apache2/sites-available/intranet.lksn2023.com.conf
+        regexp: '/var/www/html'
+        replace: '/var/www/intranet'
+
+    - name: edit file /etc/apache2/ports.conf
+      ansible.builtin.lineinfile:
+        path: /etc/apache2/ports.conf
+        line: |
+          Listen {{ webport }}
+          Listen 8081
+
+    - name: disable 000-default.conf and enable site conf
+      shell: |
+        a2dissite 000-default
+        a2ensite lin.lksn2023.com
+        a2ensite intranet.lksn2023.com
+
+    - name: restart apache2
+      service:
+        name: apache2
+        state: restarted

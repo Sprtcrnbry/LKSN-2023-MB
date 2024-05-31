@@ -1,0 +1,18 @@
+---
+- name: Setup TermService running type
+  hosts: windows
+  tasks:
+    - name: Stop and Disable TermService
+      ansible.windows.win_service:
+        name: TermService
+        state: stopped
+        start_mode: disabled
+
+    - name: exec powershell command to get TermService info
+      ansible.windows.win_shell:
+        Get-Service -Name TermService | Select-Object DisplayName, Status, StartType
+      register: termservice_info
+
+    - name: display TermService info
+      debug:
+        var: termservice_info
